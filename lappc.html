@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ប្រព័ន្ធគ្រប់គ្រងបន្ទប់កុំព្យូទ័រ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;700&family=Moul&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kantumruy Pro', sans-serif; background-color: #f8fafc; }
+        .khmer-moul { font-family: 'Moul', serif; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        
+        /* Print Styles */
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; padding: 0; margin: 0; }
+            main { padding: 0; margin: 0; width: 100%; }
+            .section-content { display: block !important; }
+            #section-reports { display: block !important; }
+            .report-header { display: flex !important; flex-direction: column; align-items: center; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #ddd !important; padding: 8px !important; }
+            .lg\:col-span-3 { width: 100% !important; }
+        }
+        .print-only { display: none; }
+
+        .active-filter { background-color: #1e40af !important; color: white !important; }
+        .section-content { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Auth Section: Login Page -->
+    <div id="auth-section" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[1000] p-4">
+        <div class="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-blue-50">
+                    <i data-lucide="shield-check" class="text-blue-600 w-10 h-10"></i>
+                </div>
+                <h2 class="khmer-moul text-blue-800 text-lg">ចូលប្រើប្រាស់ប្រព័ន្ធ</h2>
+                <p class="text-gray-500 text-[11px] mt-2 font-bold uppercase tracking-widest">Administrator Login</p>
+            </div>
+            <form id="login-form" class="space-y-5">
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-500 mb-1.5 uppercase">ឈ្មោះអ្នកប្រើ (Username)</label>
+                    <div class="relative">
+                        <i data-lucide="user" class="absolute left-3 top-3 w-4.5 h-4.5 text-gray-400"></i>
+                        <input type="text" id="login-username" class="w-full pl-11 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50" placeholder="ឈ្មោះអ្នកប្រើ" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-500 mb-1.5 uppercase">លេខសម្ងាត់ (Password)</label>
+                    <div class="relative">
+                        <i data-lucide="lock" class="absolute left-3 top-3 w-4.5 h-4.5 text-gray-400"></i>
+                        <input type="password" id="login-password" class="w-full pl-11 p-3.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50" placeholder="លេខសម្ងាត់" required>
+                    </div>
+                </div>
+                <div id="login-error" class="text-red-500 text-[11px] font-bold hidden bg-red-50 p-3 rounded-lg border border-red-100">
+                    <i data-lucide="alert-circle" class="w-3.5 h-3.5 inline mr-1"></i> ឈ្មោះ ឬលេខសម្ងាត់មិនត្រឹមត្រូវ!
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 text-sm">ចូលប្រព័ន្ធ</button>
+            </form>
+            <p class="text-center text-[10px] text-gray-400 mt-8">Default: admin / 1234</p>
+        </div>
+    </div>
+
+    <!-- App Content (Hidden until login) -->
+    <div id="app-content" class="hidden">
+        <!-- Header for Print -->
+        <div class="print-only report-header py-6 text-center border-b mb-6">
+            <div id="print-logo-container" class="mb-2 flex justify-center"></div>
+            <h2 id="print-school-name" class="khmer-moul text-lg text-blue-900">ឈ្មោះសាលារៀន</h2>
+            <p class="text-sm font-bold mt-1">របាយការណ៍ប្រើប្រាស់បន្ទប់កុំព្យូទ័រ</p>
+            <p id="print-date-range" class="text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <!-- Navbar -->
+        <nav class="bg-blue-800 text-white p-4 sticky top-0 z-50 shadow-lg no-print">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div id="school-logo-display" class="w-10 h-10 bg-white rounded-full flex items-center justify-center overflow-hidden border-2 border-white">
+                        <i data-lucide="monitor" class="text-blue-800"></i>
+                    </div>
+                    <div>
+                        <h1 id="header-school-name" class="khmer-moul text-sm md:text-base leading-tight">ប្រព័ន្ធគ្រប់គ្រងបន្ទប់កុំព្យូទ័រ</h1>
+                    </div>
+                </div>
+                <div class="hidden lg:flex space-x-4 text-[13px] font-bold items-center">
+                    <button onclick="showSection('checkin')" class="hover:text-yellow-400 transition flex items-center"><i data-lucide="log-in" class="w-4 h-4 mr-1"></i> ចុះឈ្មោះចូល</button>
+                    <button onclick="showSection('status')" class="hover:text-yellow-400 transition flex items-center"><i data-lucide="monitor" class="w-4 h-4 mr-1"></i> ស្ថានភាពម៉ាស៊ីន</button>
+                    <button onclick="showSection('reports')" class="hover:text-yellow-400 transition flex items-center"><i data-lucide="file-text" class="w-4 h-4 mr-1"></i> របាយការណ៍</button>
+                    <button onclick="showSection('students')" class="hover:text-yellow-400 transition flex items-center"><i data-lucide="users" class="w-4 h-4 mr-1"></i> គ្រប់គ្រងសិស្ស</button>
+                    <button onclick="showSection('settings')" class="hover:text-yellow-400 transition flex items-center"><i data-lucide="settings" class="w-4 h-4 mr-1"></i> ការកំណត់</button>
+                    <div class="h-6 w-[1px] bg-blue-700 mx-2"></div>
+                    <button onclick="handleLogout()" class="bg-red-500/10 text-red-200 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg transition flex items-center text-[12px]">
+                        <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> ចាកចេញ
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="container mx-auto p-4 md:p-8">
+            <!-- Section: Check-In -->
+            <section id="section-checkin" class="section-content">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border-t-4 border-blue-600">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="khmer-moul text-blue-800 flex items-center text-sm md:text-base">
+                                <i data-lucide="log-in" class="mr-2"></i> ផ្ទាំងចុះឈ្មោះចូល
+                            </h2>
+                        </div>
+                        <form id="form-checkin" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-bold mb-1">ស្វែងរកឈ្មោះ ឬអត្តលេខ</label>
+                                <input type="text" id="search-student" list="student-datalist" class="w-full p-2.5 border rounded-xl focus:ring-2 focus:ring-blue-400 outline-none" placeholder="វាយឈ្មោះ ឬអត្តលេខ..." required>
+                                <datalist id="student-datalist"></datalist>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-bold mb-1">លេខកុំព្យូទ័រ</label>
+                                    <select id="pc-number" class="w-full p-2.5 border rounded-xl" required></select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-1">គោលបំណង</label>
+                                    <select id="purpose" class="w-full p-2.5 border rounded-xl" required>
+                                        <option value="ស្រាវជ្រាវមេរៀន">ស្រាវជ្រាវមេរៀន</option>
+                                        <option value="ធ្វើកិច្ចការផ្ទះ">ធ្វើកិច្ចការផ្ទះ</option>
+                                        <option value="ប្រឡង Online">ប្រឡង Online</option>
+                                        <option value="ធ្វើ Slide បទបង្ហាញ">ធ្វើ Slide បទបង្ហាញ</option>
+                                        <option value="ផ្សេងៗ">ផ្សេងៗ</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-md">ចុះឈ្មោះចូលប្រើប្រាស់</button>
+                        </form>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border-t-4 border-green-500">
+                        <h2 class="khmer-moul text-green-700 mb-6 flex items-center text-sm md:text-base">
+                            <i data-lucide="history" class="mr-2"></i> កំពុងប្រើប្រាស់
+                        </h2>
+                        <div id="latest-checkin-list" class="space-y-3">
+                            <div class="text-center py-10 text-gray-400 italic">មិនទាន់មានទិន្នន័យ</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: PC Status -->
+            <section id="section-status" class="section-content hidden">
+                <div id="pc-grid" class="grid-container"></div>
+            </section>
+
+            <!-- Section: Reports -->
+            <section id="section-reports" class="section-content hidden">
+                <div class="grid lg:grid-cols-4 gap-6">
+                    <div class="lg:col-span-1 space-y-6 no-print">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <h2 class="khmer-moul text-blue-800 mb-4 text-xs">តម្រងរបាយការណ៍</h2>
+                            <div class="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl">
+                                <button onclick="setFilterType('day')" id="btn-filter-day" class="flex-1 text-[10px] py-2 rounded-lg active-filter transition">ថ្ងៃ</button>
+                                <button onclick="setFilterType('month')" id="btn-filter-month" class="flex-1 text-[10px] py-2 rounded-lg bg-transparent text-gray-600 transition">ខែ</button>
+                                <button onclick="setFilterType('year')" id="btn-filter-year" class="flex-1 text-[10px] py-2 rounded-lg bg-transparent text-gray-600 transition">ឆ្នាំ</button>
+                            </div>
+                            <input type="date" id="report-date" class="w-full p-2.5 border rounded-xl mb-4 outline-none focus:ring-2 focus:ring-blue-100" onchange="updateReport()">
+                            <div class="space-y-3 mt-4 border-t pt-4 text-xs">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">សរុបថ្ងៃនេះ:</span>
+                                    <span id="stat-day" class="text-blue-600 font-bold">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <h2 class="khmer-moul text-blue-800 mb-4 text-xs text-center">វិភាគគោលបំណង</h2>
+                            <div class="h-48"><canvas id="purposeChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm min-h-[500px]">
+                        <div class="flex flex-wrap justify-between items-center mb-6 no-print gap-4">
+                            <h2 class="khmer-moul text-blue-800 text-sm">ប្រវត្តិប្រើប្រាស់លម្អិត</h2>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="handlePrint()" class="bg-gray-800 text-white px-3 py-2 rounded-lg text-[10px] font-bold flex items-center hover:bg-gray-900">
+                                    <i data-lucide="printer" class="w-3.5 h-3.5 mr-1.5"></i> បោះពុម្ព / PDF
+                                </button>
+                                <button onclick="exportToWord()" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold flex items-center hover:bg-blue-700">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5"></i> Word
+                                </button>
+                                <button onclick="exportToExcel()" class="bg-green-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold flex items-center hover:bg-green-700">
+                                    <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 mr-1.5"></i> Excel
+                                </button>
+                            </div>
+                        </div>
+                        <div id="printable-area" class="overflow-x-auto rounded-xl border border-gray-100">
+                            <table class="w-full text-left text-xs border-collapse" id="report-table">
+                                <thead class="bg-gray-50 font-bold border-b">
+                                    <tr>
+                                        <th class="p-4 border-r">កាលបរិច្ឆេទ/ម៉ោង</th>
+                                        <th class="p-4 border-r">ឈ្មោះសិស្ស</th>
+                                        <th class="p-4 border-r">PC</th>
+                                        <th class="p-4 border-r">គោលបំណង</th>
+                                        <th class="p-4 text-center">រយៈពេល</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-table-body" class="divide-y divide-gray-50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Student Management -->
+            <section id="section-students" class="section-content hidden">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-500">
+                        <p class="text-xs font-bold text-gray-500 mb-1">សិស្សថ្នាក់ទី ៧</p>
+                        <p id="auto-count-g7" class="text-3xl font-bold text-blue-600">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-500">
+                        <p class="text-xs font-bold text-gray-500 mb-1">សិស្សថ្នាក់ទី ៨</p>
+                        <p id="auto-count-g8" class="text-3xl font-bold text-green-600">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-purple-500">
+                        <p class="text-xs font-bold text-gray-500 mb-1">សិស្សថ្នាក់ទី ៩</p>
+                        <p id="auto-count-g9" class="text-3xl font-bold text-purple-600">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm">
+                    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-6">
+                        <h2 class="khmer-moul text-blue-800 text-lg">បញ្ជីឈ្មោះសិស្សសរុប</h2>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="downloadExcelTemplate()" class="bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl text-[11px] font-bold flex items-center hover:bg-gray-200">
+                                <i data-lucide="download" class="w-4 h-4 mr-2"></i> គំរូ Excel
+                            </button>
+                            <label class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-[11px] font-bold flex items-center hover:bg-indigo-700 cursor-pointer">
+                                <i data-lucide="upload" class="w-4 h-4 mr-2"></i> នាំសិស្សចូល (Excel)
+                                <input type="file" class="hidden" accept=".xlsx, .xls" onchange="importFromExcel(this)">
+                            </label>
+                            <button onclick="openStudentModal()" class="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-[11px] font-bold flex items-center hover:bg-blue-700">
+                                <i data-lucide="plus" class="w-4 h-4 mr-2"></i> បញ្ចូលសិស្សថ្មី
+                            </button>
+                            <button onclick="clearStudents()" class="bg-red-500 text-white px-4 py-2.5 rounded-xl text-[11px] font-bold flex items-center hover:bg-red-600">
+                                <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i> លុបទាំងអស់
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto rounded-2xl border border-gray-100">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead class="bg-gray-50 font-bold border-b">
+                                <tr>
+                                    <th class="p-4 border-r">អត្តលេខ</th>
+                                    <th class="p-4 border-r">ឈ្មោះខ្មែរ</th>
+                                    <th class="p-4 border-r">ឈ្មោះឡាតាំង</th>
+                                    <th class="p-4 border-r text-center">ភេទ</th>
+                                    <th class="p-4 border-r text-center">ថ្នាក់</th>
+                                    <th class="p-4 text-center">សកម្មភាព</th>
+                                </tr>
+                            </thead>
+                            <tbody id="student-table-body" class="divide-y divide-gray-50 text-[13px]"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Settings -->
+            <section id="section-settings" class="section-content hidden">
+                <div class="bg-white p-8 rounded-2xl shadow-sm max-w-4xl mx-auto border border-gray-100 space-y-12">
+                    <div>
+                        <h2 class="khmer-moul text-blue-800 mb-8 border-b pb-4 flex items-center">
+                            <i data-lucide="settings" class="mr-3"></i> ការកំណត់ព័ត៌មានសាលា
+                        </h2>
+                        <div class="grid md:grid-cols-3 gap-10">
+                            <div class="md:col-span-1 flex flex-col items-center">
+                                <div id="settings-logo-preview" class="w-40 h-40 bg-gray-50 rounded-full border-4 border-blue-50 flex items-center justify-center overflow-hidden mb-6 shadow-inner">
+                                    <i data-lucide="image" class="text-gray-300 w-16 h-16"></i>
+                                </div>
+                                <label class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-[11px] font-bold cursor-pointer hover:bg-blue-700 transition shadow-sm">
+                                    ប្តូររូបភាព Logo
+                                    <input type="file" class="hidden" accept="image/*" onchange="previewLogo(this)">
+                                </label>
+                            </div>
+                            <div class="md:col-span-2 space-y-5">
+                                <div>
+                                    <label class="block text-[11px] font-bold mb-1.5 text-gray-500 uppercase tracking-wider">ឈ្មោះសាលារៀន</label>
+                                    <input type="text" id="set-school-name" class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50/50">
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div><label class="block text-[11px] font-bold mb-1.5 text-gray-500 uppercase tracking-wider">ខេត្ត/ក្រុង</label><input type="text" id="set-province" class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100"></div>
+                                    <div><label class="block text-[11px] font-bold mb-1.5 text-gray-500 uppercase tracking-wider">ស្រុក/ខណ្ឌ</label><input type="text" id="set-district" class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100"></div>
+                                </div>
+                                <div class="pt-6 border-t mt-4">
+                                    <button onclick="saveAdvancedSettings()" class="w-full bg-blue-600 text-white py-4 rounded-xl hover:bg-blue-700 transition font-bold text-sm shadow-lg shadow-blue-200">រក្សាទុកការកំណត់</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Settings -->
+                    <div class="pt-8 border-t">
+                        <h2 class="khmer-moul text-red-700 mb-8 flex items-center text-sm">
+                            <i data-lucide="lock" class="mr-3"></i> ការកំណត់សុវត្ថិភាពគណនី
+                        </h2>
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-[11px] font-bold mb-1.5 text-gray-500 uppercase">ឈ្មោះអ្នកប្រើថ្មី</label>
+                                <input type="text" id="new-username" class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" placeholder="ឈ្មោះអ្នកប្រើថ្មី">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold mb-1.5 text-gray-500 uppercase">លេខសម្ងាត់ថ្មី</label>
+                                <input type="password" id="new-password" class="w-full p-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" placeholder="លេខសម្ងាត់ថ្មី">
+                            </div>
+                        </div>
+                        <button onclick="updateCredentials()" class="mt-6 bg-slate-800 text-white px-8 py-3.5 rounded-xl font-bold text-xs hover:bg-slate-900 transition">ប្តូរព័ត៌មានគណនី</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal: Student Form -->
+    <div id="student-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center hidden z-[100] p-4">
+        <div class="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl relative">
+            <h3 id="modal-title" class="khmer-moul text-blue-800 mb-6 border-b pb-4 text-base">ចុះឈ្មោះសិស្សថ្មី</h3>
+            <form id="form-student" class="space-y-5">
+                <input type="hidden" id="edit-original-id">
+                <div class="grid grid-cols-2 gap-5">
+                    <div><label class="text-xs font-bold text-gray-500">អត្តលេខ</label><input type="text" id="stu-id" class="w-full p-3 border rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-blue-100" required></div>
+                    <div><label class="text-xs font-bold text-gray-500">ភេទ</label><select id="stu-gender" class="w-full p-3 border rounded-xl"><option>ប្រុស</option><option>ស្រី</option></select></div>
+                    <div class="col-span-2"><label class="text-xs font-bold text-gray-500">ឈ្មោះខ្មែរ</label><input type="text" id="stu-name-kh" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-100" required></div>
+                    <div class="col-span-2"><label class="text-xs font-bold text-gray-500">ឈ្មោះឡាតាំង</label><input type="text" id="stu-name-en" class="w-full p-3 border rounded-xl" placeholder="SOK SAN"></div>
+                    <div><label class="text-xs font-bold text-gray-500">ថ្នាក់ (ឧ: 7A, 8B...)</label><input type="text" id="stu-class" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-100" required></div>
+                    <div><label class="text-xs font-bold text-gray-500">ថ្ងៃខែឆ្នាំកំណើត</label><input type="date" id="stu-dob" class="w-full p-3 border rounded-xl"></div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-8">
+                    <button type="button" onclick="closeStudentModal()" class="px-6 py-3 border rounded-xl text-xs font-bold hover:bg-gray-50 transition">បោះបង់</button>
+                    <button type="submit" class="px-10 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition shadow-lg shadow-blue-100">រក្សាទុក</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[200]"></div>
+
+    <script>
+        // State Management
+        let state = {
+            students: JSON.parse(localStorage.getItem('lab_v3_students')) || [],
+            activeSessions: JSON.parse(localStorage.getItem('lab_v3_sessions')) || [],
+            history: JSON.parse(localStorage.getItem('lab_v3_history')) || [],
+            settings: JSON.parse(localStorage.getItem('lab_v3_settings')) || {
+                schoolName: 'សាលារៀនរបស់អ្នក', logo: '', province: '', district: '',
+                username: 'admin', password: '1234'
+            },
+            filterType: 'day',
+            isLoggedIn: sessionStorage.getItem('lab_logged_in') === 'true'
+        };
+
+        let purposeChart = null;
+
+        function refreshIcons() { if (typeof lucide !== 'undefined') lucide.createIcons(); }
+
+        function init() {
+            if (state.isLoggedIn) {
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                applySettings();
+                renderPCGrid();
+                renderStudentTable();
+                populateStudentDatalist();
+                populatePCOptions();
+                updateAutoCounts();
+                updateLatestCheckins();
+                const reportDateInput = document.getElementById('report-date');
+                if(reportDateInput) reportDateInput.valueAsDate = new Date();
+                setInterval(updateTimers, 1000);
+            } else {
+                document.getElementById('auth-section').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('hidden');
+            }
+            refreshIcons();
+        }
+
+        // --- Authentication ---
+        document.getElementById('login-form').onsubmit = function(e) {
+            e.preventDefault();
+            const u = document.getElementById('login-username').value.trim();
+            const p = document.getElementById('login-password').value.trim();
+            const errorEl = document.getElementById('login-error');
+
+            if (u === (state.settings.username || 'admin') && p === (state.settings.password || '1234')) {
+                state.isLoggedIn = true;
+                sessionStorage.setItem('lab_logged_in', 'true');
+                errorEl.classList.add('hidden');
+                init();
+                showToast("ចូលប្រើប្រាស់បានជោគជ័យ");
+            } else {
+                errorEl.classList.remove('hidden');
+            }
+        };
+
+        function handleLogout() {
+            sessionStorage.removeItem('lab_logged_in');
+            window.location.reload();
+        }
+
+        function updateCredentials() {
+            const newUser = document.getElementById('new-username').value.trim();
+            const newPass = document.getElementById('new-password').value.trim();
+            if (newUser && newPass) {
+                state.settings.username = newUser;
+                state.settings.password = newPass;
+                saveData();
+                showToast("ប្តូរគណនីជោគជ័យ! សូមចូលម្តងទៀត");
+                setTimeout(handleLogout, 1500);
+            } else {
+                showToast("សូមបំពេញឈ្មោះ និងលេខសម្ងាត់ថ្មី", "error");
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('lab_v3_students', JSON.stringify(state.students));
+            localStorage.setItem('lab_v3_sessions', JSON.stringify(state.activeSessions));
+            localStorage.setItem('lab_v3_history', JSON.stringify(state.history));
+            localStorage.setItem('lab_v3_settings', JSON.stringify(state.settings));
+        }
+
+        function showSection(id) {
+            document.querySelectorAll('.section-content').forEach(s => s.classList.add('hidden'));
+            document.getElementById('section-' + id).classList.remove('hidden');
+            if (id === 'reports') updateReport();
+            refreshIcons();
+        }
+
+        // --- Students ---
+        function renderStudentTable() {
+            const tb = document.getElementById('student-table-body');
+            if(!tb) return;
+            tb.innerHTML = '';
+            if(state.students.length === 0) {
+                tb.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-gray-400 italic">មិនមានបញ្ជីឈ្មោះសិស្សទេ</td></tr>';
+                return;
+            }
+            state.students.forEach(s => {
+                tb.innerHTML += `
+                    <tr class="hover:bg-blue-50/30 transition">
+                        <td class="p-4 border-r text-gray-600 font-mono">${s.id}</td>
+                        <td class="p-4 border-r font-bold text-blue-900">${s.nameKh}</td>
+                        <td class="p-4 border-r uppercase text-gray-400 text-xs font-bold">${s.nameEn || '---'}</td>
+                        <td class="p-4 border-r text-center">${s.gender}</td>
+                        <td class="p-4 border-r text-center font-bold text-blue-600">${s.className}</td>
+                        <td class="p-4 text-center space-x-3">
+                            <button onclick="editStudent('${s.id}')" class="text-blue-500 hover:bg-blue-100 p-2 rounded-lg transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="deleteStudent('${s.id}')" class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </td>
+                    </tr>`;
+            });
+            refreshIcons();
+        }
+
+        function openStudentModal() {
+            document.getElementById('modal-title').innerText = "ចុះឈ្មោះសិស្សថ្មី";
+            document.getElementById('form-student').reset();
+            document.getElementById('edit-original-id').value = "";
+            document.getElementById('student-modal').classList.remove('hidden');
+        }
+
+        function closeStudentModal() { document.getElementById('student-modal').classList.add('hidden'); }
+
+        document.getElementById('form-student').onsubmit = function(e) {
+            e.preventDefault();
+            const originalId = document.getElementById('edit-original-id').value;
+            const s = {
+                id: document.getElementById('stu-id').value.trim(),
+                nameKh: document.getElementById('stu-name-kh').value.trim(),
+                nameEn: document.getElementById('stu-name-en').value.trim(),
+                gender: document.getElementById('stu-gender').value,
+                className: document.getElementById('stu-class').value.trim(),
+                dob: document.getElementById('stu-dob').value
+            };
+            if (originalId) {
+                const idx = state.students.findIndex(x => x.id === originalId);
+                state.students[idx] = s;
+            } else {
+                if (state.students.some(x => x.id === s.id)) return showToast("អត្តលេខមានរួចហើយ", "error");
+                state.students.push(s);
+            }
+            saveData(); renderStudentTable(); populateStudentDatalist(); updateAutoCounts(); closeStudentModal();
+            showToast("រក្សាទុកជោគជ័យ");
+        };
+
+        function editStudent(id) {
+            const s = state.students.find(x => x.id === id);
+            if (!s) return;
+            document.getElementById('modal-title').innerText = "កែសម្រួលព័ត៌មានសិស្ស";
+            document.getElementById('stu-id').value = s.id;
+            document.getElementById('stu-name-kh').value = s.nameKh;
+            document.getElementById('stu-name-en').value = s.nameEn || '';
+            document.getElementById('stu-gender').value = s.gender;
+            document.getElementById('stu-class').value = s.className;
+            document.getElementById('stu-dob').value = s.dob || '';
+            document.getElementById('edit-original-id').value = s.id;
+            document.getElementById('student-modal').classList.remove('hidden');
+        }
+
+        function deleteStudent(id) {
+            if (confirm("លុបទិន្នន័យសិស្សនេះ?")) {
+                state.students = state.students.filter(s => s.id !== id);
+                saveData(); renderStudentTable(); updateAutoCounts(); populateStudentDatalist();
+            }
+        }
+
+        function clearStudents() {
+            if (confirm("លុបសិស្សទាំងអស់?")) {
+                state.students = []; saveData(); renderStudentTable(); updateAutoCounts(); populateStudentDatalist();
+            }
+        }
+
+        // --- PC Grid ---
+        function renderPCGrid() {
+            const grid = document.getElementById('pc-grid');
+            if(!grid) return;
+            grid.innerHTML = '';
+            for (let i = 1; i <= 40; i++) {
+                const session = state.activeSessions.find(s => s.pcNumber === i);
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-2xl border-2 flex flex-col justify-between transition min-h-[170px] shadow-sm ${session ? 'bg-white border-blue-400' : 'bg-gray-50 border-gray-100'}`;
+                if (session) {
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-lg font-bold">PC-${i}</span>
+                                <span class="text-[10px] text-blue-600 font-bold timer flex items-center" data-start="${session.startTime}"><i data-lucide="clock" class="w-3 h-3 mr-1"></i> 00:00:00</span>
+                            </div>
+                            <p class="font-bold text-xs text-blue-900 truncate mb-1">${session.studentNameKh}</p>
+                            <p class="text-[9px] text-gray-400 font-medium italic">📌 ${session.purpose}</p>
+                        </div>
+                        <button onclick="checkOut(${i})" class="w-full bg-red-50 text-red-600 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition">Check Out</button>
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start"><span class="bg-gray-200 text-gray-500 text-[10px] px-2 py-0.5 rounded-lg font-bold">PC-${i}</span></div>
+                        <div class="flex-grow flex items-center justify-center opacity-5"><i data-lucide="monitor" class="w-12 h-12"></i></div>
+                        <button onclick="quickCheckIn(${i})" class="w-full border border-dashed border-blue-200 text-blue-300 py-2 rounded-xl text-[10px] font-bold hover:bg-blue-50">ទំនេរ</button>
+                    `;
+                }
+                grid.appendChild(card);
+            }
+            refreshIcons();
+        }
+
+        document.getElementById('form-checkin').onsubmit = function(e) {
+            e.preventDefault();
+            const val = document.getElementById('search-student').value;
+            const pc = parseInt(document.getElementById('pc-number').value);
+            const purp = document.getElementById('purpose').value;
+            const id = val.includes(' | ') ? val.split(' | ')[0].trim() : val.trim();
+            const stu = state.students.find(s => s.id === id);
+            if (!pc) return showToast("ជ្រើសរើស PC", "error");
+            state.activeSessions.push({
+                id: Date.now(), studentId: id, studentNameKh: stu ? stu.nameKh : val,
+                pcNumber: pc, purpose: purp, startTime: new Date().toISOString()
+            });
+            saveData(); renderPCGrid(); populatePCOptions(); updateLatestCheckins();
+            e.target.reset(); showToast("ចុះឈ្មោះចូលជោគជ័យ");
+        };
+
+        function checkOut(pcNum) {
+            const idx = state.activeSessions.findIndex(s => s.pcNumber === pcNum);
+            if (idx > -1) {
+                const s = state.activeSessions[idx];
+                const duration = Math.max(1, Math.floor((new Date() - new Date(s.startTime)) / 60000));
+                state.history.push({ ...s, endTime: new Date().toISOString(), duration });
+                state.activeSessions.splice(idx, 1);
+                saveData(); renderPCGrid(); populatePCOptions(); updateLatestCheckins();
+                showToast(`PC-${pcNum} បានបញ្ចប់`);
+            }
+        }
+
+        function updateLatestCheckins() {
+            const list = document.getElementById('latest-checkin-list');
+            if(!list) return;
+            list.innerHTML = '';
+            const latest = [...state.activeSessions].sort((a,b) => new Date(b.startTime) - new Date(a.startTime)).slice(0, 5);
+            if (latest.length === 0) {
+                list.innerHTML = `<div class="text-center py-10 text-gray-400 italic">មិនទាន់មានសកម្មភាព</div>`;
+                return;
+            }
+            latest.forEach(s => {
+                const timeStr = new Date(s.startTime).toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit' });
+                list.innerHTML += `
+                    <div class="flex items-center justify-between p-4 bg-blue-50/50 rounded-2xl border border-blue-50">
+                        <div class="flex items-center space-x-3">
+                            <div class="bg-blue-600 text-white w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-bold">PC-${s.pcNumber}</div>
+                            <div><p class="text-xs font-bold text-blue-900">${s.studentNameKh}</p><p class="text-[9px] text-gray-500">${s.purpose}</p></div>
+                        </div>
+                        <span class="text-[9px] font-bold text-blue-400 bg-white px-2 py-1 rounded-lg">${timeStr}</span>
+                    </div>`;
+            });
+        }
+
+        // --- Reports ---
+        function setFilterType(type) {
+            state.filterType = type;
+            ['day', 'month', 'year'].forEach(t => {
+                const btn = document.getElementById(`btn-filter-${t}`);
+                if (t === type) btn.classList.add('active-filter'); else btn.classList.remove('active-filter');
+            });
+            const input = document.getElementById('report-date');
+            input.type = (type === 'day') ? 'date' : (type === 'month' ? 'month' : 'number');
+            if (type === 'year') input.value = new Date().getFullYear();
+            updateReport();
+        }
+
+        function updateReport() {
+            const filterVal = document.getElementById('report-date').value;
+            if (!filterVal) return;
+            const filtered = state.history.filter(h => {
+                if (state.filterType === 'day') return h.startTime.startsWith(filterVal);
+                if (state.filterType === 'month') return h.startTime.startsWith(filterVal);
+                return new Date(h.startTime).getFullYear().toString() === filterVal;
+            });
+            const tbody = document.getElementById('report-table-body');
+            tbody.innerHTML = '';
+            const stats = {};
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-gray-400 italic">មិនមានទិន្នន័យ</td></tr>';
+            } else {
+                filtered.slice().reverse().forEach(h => {
+                    const d = new Date(h.startTime);
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50/50 transition">
+                            <td class="p-4 border-r text-gray-500 font-mono">${d.toLocaleDateString('km-KH')} ${d.toLocaleTimeString('km-KH', {hour:'2-digit', minute:'2-digit'})}</td>
+                            <td class="p-4 border-r font-bold text-blue-900">${h.studentNameKh}</td>
+                            <td class="p-4 border-r font-bold">PC-${h.pcNumber}</td>
+                            <td class="p-4 border-r">${h.purpose}</td>
+                            <td class="p-4 text-center text-indigo-600 font-bold">${h.duration} នាទី</td>
+                        </tr>`;
+                    stats[h.purpose] = (stats[h.purpose] || 0) + 1;
+                });
+            }
+            document.getElementById('stat-day').innerText = state.history.filter(h => h.startTime.startsWith(new Date().toISOString().split('T')[0])).length;
+            renderPurposeChart(stats);
+            
+            // Set Print Text
+            document.getElementById('print-school-name').innerText = state.settings.schoolName;
+            document.getElementById('print-date-range').innerText = "សម្រាប់: " + filterVal;
+            const logoContainer = document.getElementById('print-logo-container');
+            if(state.settings.logo) logoContainer.innerHTML = `<img src="${state.settings.logo}" class="w-16 h-16 object-contain">`;
+            else logoContainer.innerHTML = '';
+            
+            refreshIcons();
+        }
+
+        function renderPurposeChart(stats) {
+            const ctx = document.getElementById('purposeChart')?.getContext('2d');
+            if (!ctx) return;
+            if (purposeChart) purposeChart.destroy();
+            if (Object.keys(stats).length === 0) return;
+            purposeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels: Object.keys(stats), datasets: [{ data: Object.values(stats), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'], borderWeight: 0, borderRadius: 5 }] },
+                options: { cutout: '75%', plugins: { legend: { display: false } } }
+            });
+        }
+
+        // --- Export Functions ---
+        function handlePrint() { window.print(); }
+
+        function exportToWord() {
+            const html = document.getElementById('printable-area').innerHTML;
+            const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Report</title><style>table{width:100%;border-collapse:collapse;}th,td{border:1px solid gray;padding:5px;text-align:left;}</style></head><body>";
+            const footer = "</body></html>";
+            const source = header + "<h3>របាយការណ៍ " + state.settings.schoolName + "</h3>" + html + footer;
+            const blob = new Blob(['\ufeff', source], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'Computer_Lab_Report.doc';
+            link.click();
+        }
+
+        function exportToExcel() {
+            const wb = XLSX.utils.table_to_book(document.getElementById('report-table'));
+            XLSX.writeFile(wb, `Report_Lab_${Date.now()}.xlsx`);
+        }
+
+        // --- Settings & UI ---
+        function previewLogo(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    state.settings.logo = e.target.result;
+                    applySettings();
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function applySettings() {
+            const s = state.settings;
+            document.getElementById('header-school-name').innerText = s.schoolName;
+            document.getElementById('set-school-name').value = s.schoolName;
+            document.getElementById('set-province').value = s.province || '';
+            document.getElementById('set-district').value = s.district || '';
+            if (s.logo) {
+                const logoHtml = `<img src="${s.logo}" class="w-full h-full object-cover">`;
+                document.getElementById('school-logo-display').innerHTML = logoHtml;
+                document.getElementById('settings-logo-preview').innerHTML = logoHtml;
+            }
+        }
+
+        function saveAdvancedSettings() {
+            state.settings.schoolName = document.getElementById('set-school-name').value;
+            state.settings.province = document.getElementById('set-province').value;
+            state.settings.district = document.getElementById('set-district').value;
+            saveData(); applySettings(); showToast("រក្សាទុកជោគជ័យ");
+        }
+
+        function downloadExcelTemplate() {
+            const template = [{ 'អត្តលេខ': '1001', 'ឈ្មោះខ្មែរ': 'សុខ សាន', 'ឈ្មោះឡាតាំង': 'SOK SAN', 'ភេទ': 'ប្រុស', 'ថ្នាក់': '9A', 'ថ្ងៃកំណើត': '2009-01-01' }];
+            const ws = XLSX.utils.json_to_sheet(template);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Students");
+            XLSX.writeFile(wb, "Student_Template.xlsx");
+        }
+
+        function importFromExcel(input) {
+            if (!input.files || !input.files[0]) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                let count = 0;
+                rows.forEach(r => {
+                    const id = (r['អត្តលេខ'] || r['ID'] || '').toString().trim();
+                    if (id && !state.students.some(s => s.id === id)) {
+                        state.students.push({
+                            id, nameKh: r['ឈ្មោះខ្មែរ'] || 'មិនស្គាល់', nameEn: r['ឈ្មោះឡាតាំង'] || '',
+                            gender: r['ភេទ'] || 'ប្រុស', className: (r['ថ្នាក់'] || 'N/A').toString(), dob: r['ថ្ងៃកំណើត'] || ''
+                        });
+                        count++;
+                    }
+                });
+                saveData(); renderStudentTable(); populateStudentDatalist(); updateAutoCounts();
+                showToast(`នាំចូលបាន ${count} នាក់`);
+                input.value = '';
+            };
+            reader.readAsArrayBuffer(input.files[0]);
+        }
+
+        function populateStudentDatalist() {
+            const dl = document.getElementById('student-datalist');
+            if(!dl) return; dl.innerHTML = '';
+            state.students.forEach(s => dl.innerHTML += `<option value="${s.id} | ${s.nameKh}"></option>`);
+        }
+
+        function populatePCOptions() {
+            const sel = document.getElementById('pc-number');
+            if (!sel) return; sel.innerHTML = '<option value="">ជ្រើសរើស</option>';
+            for (let i = 1; i <= 40; i++) {
+                if (!state.activeSessions.some(s => s.pcNumber === i)) sel.innerHTML += `<option value="${i}">PC-${i}</option>`;
+            }
+        }
+
+        function updateTimers() {
+            document.querySelectorAll('.timer').forEach(el => {
+                const diff = Math.floor((new Date() - new Date(el.dataset.start)) / 1000);
+                if (isNaN(diff)) return;
+                const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+                const s = (diff % 60).toString().padStart(2, '0');
+                el.innerHTML = `<i data-lucide="clock" class="w-3 h-3 mr-1"></i> ${h}:${m}:${s}`;
+            });
+        }
+
+        function updateAutoCounts() {
+            const count = (grade) => state.students.filter(s => s.className?.startsWith(grade)).length;
+            document.getElementById('auto-count-g7').innerText = count('7');
+            document.getElementById('auto-count-g8').innerText = count('8');
+            document.getElementById('auto-count-g9').innerText = count('9');
+        }
+
+        function showToast(msg, type='success') {
+            const t = document.createElement('div');
+            t.className = `p-4 mb-3 rounded-2xl shadow-xl text-white text-[12px] font-bold animate-bounce ${type==='success'?'bg-green-600':'bg-red-600'}`;
+            t.innerText = msg;
+            document.getElementById('toast-container').appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+
+        function quickCheckIn(n) { showSection('checkin'); document.getElementById('pc-number').value = n; }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
